@@ -3,6 +3,7 @@ from torch import nn
 import copy
 from collections import deque
 import random
+import numpy as np
 
 class DQN_Agent:
 
@@ -36,14 +37,21 @@ class DQN_Agent:
     def save_trained_model(self, model_path="cartpole-dqn.pth"):
         torch.save(self.q_net.state_dict(), model_path)
 
-    def get_action(self, state, action_space_len, epsilon):
-        # We do not require gradient at this point, because this function will be used either
-        # during experience collection or during inference
+    def get_action(self, state, available_actions, epsilon):
         with torch.no_grad():
             Qp = self.q_net(torch.from_numpy(state).float())
+        
         Q, A = torch.max(Qp, axis=0)
-        A = A if torch.rand(1, ).item() > epsilon else torch.randint(0, action_space_len, (1,))
-        return A
+
+        if torch.rand(1,).item() > epsilon:
+            return A
+        else:
+            sampled_action = self.sample_next_action(available_actions)
+            return torch.tensor(sampled_action)
+    
+    def sample_next_action(self, available_actions):
+        next_action = int(np.random.choice(available_actions, size=1))
+        return next_action
 
     def get_q_next(self, state):
         with torch.no_grad():
@@ -65,6 +73,7 @@ class DQN_Agent:
         a = torch.tensor([exp[1] for exp in sample]).float()
         rn = torch.tensor([exp[2] for exp in sample]).float()
         sn = torch.tensor([exp[3] for exp in sample]).float()
+
         return s, a, rn, sn
 
     def train(self, batch_size):

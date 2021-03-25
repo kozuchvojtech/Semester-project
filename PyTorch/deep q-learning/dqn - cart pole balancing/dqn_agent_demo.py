@@ -4,7 +4,6 @@ from time import sleep
 from dqn_agent import DQN_Agent
 
 env = gym.make('CartPole-v0')
-# env = gym.wrappers.Monitor(env, "record_dir", force='True')
 
 input_dim = env.observation_space.shape[0]
 output_dim = env.action_space.n
@@ -18,6 +17,7 @@ for i in tqdm(range(100)):
     obs, done, rew = env.reset(), False, 0
     while not done:
         A = agent.get_action(obs, env.action_space.n, epsilon=0)
+
         obs, reward, done, info = env.step(A.item())
         rew += reward
         sleep(0.01)
