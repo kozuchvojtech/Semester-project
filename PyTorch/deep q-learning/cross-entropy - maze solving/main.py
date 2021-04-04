@@ -1,6 +1,7 @@
 import gym
 from collections import namedtuple
 import numpy as np
+import math as math
 
 import networkx as nx
 import pylab as plt
@@ -18,36 +19,16 @@ GAMMA = 0.9
 MAZE_SIZE = 10
 SEED = 1234
 
-# maze = np.matrix([
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '.', '.', '.', '%', '.', '%'],
-#     ['%', '.', '.', '.', '%', '.', '%'],
-#     ['%', '.', '%', '%', '%', '.', '%'],
-#     ['%', '.', '%', '.', '%', '.', '%'],
-#     ['%', '.', '%', '.', '%', '%', '%'],
-#     ['%', '%', '%', '.', '%', 'C', '%']
-# ])
-
-# maze = np.matrix([
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', 'C', '%']
-# ])
-
 maze = np.matrix([
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '.', '.', 'C', '%', '.', '.', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', 'C', '%', '%', '%', '%', '%', '%', 'C', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
 ])
 
@@ -63,7 +44,7 @@ class MazeEnvironmentWrapper():
         self.current_state = 0
         self.R = self.get_reward_matrix()
         self.actions_count = 4
-        self.observations_count = 8 # MAZE_SIZE*MAZE_SIZE
+        self.observations_count = 8
         self.episode_steps_threshold = 100
         self.current_episode_steps = 0
 
@@ -82,6 +63,8 @@ class MazeEnvironmentWrapper():
     def reset(self):
         self.current_state = self.init_state
         self.current_episode_steps = 0
+        self.R = self.get_reward_matrix()
+
         return self.get_observation(self.current_state)
     
     def step(self, action, training=True):
@@ -105,14 +88,10 @@ class MazeEnvironmentWrapper():
         
         next_obs = self.get_observation(self.current_state)
 
-        if training:
-            done = maze[matrix_position] == 'C' or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
-        else:
-            if maze[matrix_position] == 'C':
-                self.R[matrix_position] = 0
+        if maze[matrix_position] == 'C':
+            self.R[matrix_position] = 0
 
-            done = np.all(self.R <= 0) or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
-
+        done = np.all(self.R <= 0) or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
         return (next_obs, reward, done)
 
     def valid_move(self, desired_state):
@@ -128,24 +107,36 @@ class MazeEnvironmentWrapper():
     
     def get_observation(self, state):
         current_position = self.get_matrix_position(state)
-        obstacle_positions = []     
+        obstacle_positions = []
+        coin_positions = []
 
         for i in range(MAZE_SIZE*MAZE_SIZE):
             matrix_position = self.get_matrix_position(i)
             if self.R[matrix_position] > 0:
-                coin_position = matrix_position
+                coin_positions.append(matrix_position)
             elif self.R[matrix_position] < 0:
                 obstacle_positions.append(matrix_position)
+
+        lowest_distance = np.min([self.euclidean_distance(current_position,coin) for coin in coin_positions])
+
+        nearest_coin_index = np.where([self.euclidean_distance(current_position,coin) == lowest_distance for coin in coin_positions])[0]
+
+        if nearest_coin_index.shape[0] > 1:
+            nearest_coin_index = int(np.random.choice(nearest_coin_index, size=1))
+        else:
+            nearest_coin_index = int(nearest_coin_index)
+
+        nearest_coin = coin_positions[nearest_coin_index]
 
         observation = [
             np.any([obs == (current_position[0]-1,current_position[1]) for obs in obstacle_positions]) or current_position[0]-1 < 0,
             np.any([obs == (current_position[0],current_position[1]+1) for obs in obstacle_positions]) or current_position[1]+1 >= MAZE_SIZE,
             np.any([obs == (current_position[0]+1,current_position[1]) for obs in obstacle_positions]) or current_position[0]+1 >= MAZE_SIZE,
             np.any([obs == (current_position[0],current_position[1]-1) for obs in obstacle_positions]) or current_position[1]-1 < 0,
-            current_position[0] > coin_position[0],      
-            current_position[1] < coin_position[1],
-            current_position[0] < coin_position[0],
-            current_position[1] > coin_position[1]
+            current_position[0] > nearest_coin[0],      
+            current_position[1] < nearest_coin[1],
+            current_position[0] < nearest_coin[0],
+            current_position[1] > nearest_coin[1]
         ]
 
         for i in range(len(observation)):
@@ -158,6 +149,9 @@ class MazeEnvironmentWrapper():
     
     def get_matrix_position(self, state):
         return (state//MAZE_SIZE, state%MAZE_SIZE)
+
+    def euclidean_distance(self, position_a, position_b):
+        return math.sqrt(math.pow(position_a[1] - position_b[1], 2) + math.pow(position_a[0] - position_b[0], 2))
 
 class Network(nn.Module):
     def __init__(self,obs_size,hidden_size,num_actions):
@@ -247,7 +241,7 @@ if __name__ == "__main__":
 
         print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_v.item(), reward_mean, reward_bound, len(elite_batch)))
 
-        if reward_mean > 0.3:
+        if reward_mean > 2.5:
             obs = env.reset()
             done = False
 
