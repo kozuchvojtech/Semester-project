@@ -36,10 +36,10 @@ MAZE_SIZE = 5
 
 maze = np.matrix([
     ['%', '%', '%', '%', '%'],
-    ['%', '.', 'C', '.', '%'],
     ['%', '.', '%', '.', '%'],
     ['%', '.', '%', '.', '%'],
-    ['%', '%', '%', '%', '%']
+    ['%', '.', '%', '.', '%'],
+    ['%', '%', '%', '%', 'C']
 ])
 
 class Move(Enum):
@@ -75,7 +75,7 @@ class MazeEnvironmentWrapper():
         self.current_episode_steps = 0
         return self.get_observation(self.current_state)
     
-    def step(self, action):
+    def step(self, action, training=True):
         self.current_episode_steps += 1
         action = Move(action)
 
@@ -95,7 +95,14 @@ class MazeEnvironmentWrapper():
         reward = self.R[matrix_position]
         
         next_obs = self.get_observation(self.current_state)
-        done = maze[matrix_position] == 'C' or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
+
+        if training:
+            done = maze[matrix_position] == 'C' or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
+        else:
+            if maze[matrix_position] == 'C':
+                self.R[matrix_position] = 0
+
+            done = np.all(self.R <= 0) or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
 
         return (next_obs, reward, done)
 
@@ -113,6 +120,10 @@ class MazeEnvironmentWrapper():
     def get_observation(self, state):
         observation = [0 for _ in range(MAZE_SIZE*MAZE_SIZE)]
         observation[state] = 1
+
+        # for i in range(len(observation)):
+        #     if self.R[self.get_matrix_position(i)] > 0:
+        #         observation[i] = 2
         return observation
     
     def get_matrix_position(self, state):
@@ -205,7 +216,7 @@ if __name__ == "__main__":
 
         print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_v.item(), reward_mean, reward_bound, len(elite_batch)))
 
-        if reward_mean > 0.5:
+        if reward_mean >= 0.4:
             obs = env.reset()
             done = False
 
@@ -215,7 +226,7 @@ if __name__ == "__main__":
                 action_probabilities = network.forward(torch.FloatTensor([obs]))
                 desired_action = np.where(action_probabilities == torch.max(action_probabilities))[1]
 
-                next_obs, reward, done = env.step(desired_action)
+                next_obs, reward, done = env.step(desired_action, False)
                 obs = next_obs
 
                 steps.append(obs)
