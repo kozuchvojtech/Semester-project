@@ -11,35 +11,44 @@ import torch.optim as optim
 
 from enum import Enum
 
-HIDDEN_SIZE = 128
+HIDDEN_SIZE = 256
 BATCH_SIZE = 15
 PERCENTILE = 75
 GAMMA = 0.9
-MAZE_SIZE = 5
+MAZE_SIZE = 10
+SEED = 1234
 
 # maze = np.matrix([
-#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-#     ['%', '%', '.', '.', '%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
-#     ['%', '%', '.', '.', '%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
-#     ['%', '%', '.', '.', '%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%', '%', '.', '.', '.', '.', '%', '%'],
-#     ['%', '%', '%', '%', '%', '%', '%', '%', '.', '.', '.', '.', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '%', '%', '%', '.', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '%', '%', '%', '.', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '.', '%', '%', '%', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '.', '%', '%', '%', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '.', '.', '.', '.', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '%', '%', '%', '%', '%', '%'],
-#     ['.', '.', '.', '.', '.', '.', '%', '%', '%', '%', '%', '%', '%', 'C']
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '.', '.', '.', '%', '.', '%'],
+#     ['%', '.', '.', '.', '%', '.', '%'],
+#     ['%', '.', '%', '%', '%', '.', '%'],
+#     ['%', '.', '%', '.', '%', '.', '%'],
+#     ['%', '.', '%', '.', '%', '%', '%'],
+#     ['%', '%', '%', '.', '%', 'C', '%']
+# ])
+
+# maze = np.matrix([
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', 'C', '%']
 # ])
 
 maze = np.matrix([
-    ['%', '%', '%', '%', '%'],
-    ['%', '.', '%', '.', '%'],
-    ['%', '.', '%', '.', '%'],
-    ['%', '.', '%', '.', '%'],
-    ['%', '%', '%', '%', 'C']
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '.', '.', 'C', '%', '.', '.', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
 ])
 
 class Move(Enum):
@@ -54,7 +63,7 @@ class MazeEnvironmentWrapper():
         self.current_state = 0
         self.R = self.get_reward_matrix()
         self.actions_count = 4
-        self.observations_count = MAZE_SIZE*MAZE_SIZE
+        self.observations_count = 8 # MAZE_SIZE*MAZE_SIZE
         self.episode_steps_threshold = 100
         self.current_episode_steps = 0
 
@@ -118,12 +127,33 @@ class MazeEnvironmentWrapper():
         return False
     
     def get_observation(self, state):
-        observation = [0 for _ in range(MAZE_SIZE*MAZE_SIZE)]
-        observation[state] = 1
+        current_position = self.get_matrix_position(state)
+        obstacle_positions = []     
 
-        # for i in range(len(observation)):
-        #     if self.R[self.get_matrix_position(i)] > 0:
-        #         observation[i] = 2
+        for i in range(MAZE_SIZE*MAZE_SIZE):
+            matrix_position = self.get_matrix_position(i)
+            if self.R[matrix_position] > 0:
+                coin_position = matrix_position
+            elif self.R[matrix_position] < 0:
+                obstacle_positions.append(matrix_position)
+
+        observation = [
+            np.any([obs == (current_position[0]-1,current_position[1]) for obs in obstacle_positions]) or current_position[0]-1 < 0,
+            np.any([obs == (current_position[0],current_position[1]+1) for obs in obstacle_positions]) or current_position[1]+1 >= MAZE_SIZE,
+            np.any([obs == (current_position[0]+1,current_position[1]) for obs in obstacle_positions]) or current_position[0]+1 >= MAZE_SIZE,
+            np.any([obs == (current_position[0],current_position[1]-1) for obs in obstacle_positions]) or current_position[1]-1 < 0,
+            current_position[0] > coin_position[0],      
+            current_position[1] < coin_position[1],
+            current_position[0] < coin_position[0],
+            current_position[1] > coin_position[1]
+        ]
+
+        for i in range(len(observation)):
+            if observation[i]:
+                observation[i]=1
+            else:
+                observation[i]=0
+
         return observation
     
     def get_matrix_position(self, state):
@@ -191,6 +221,7 @@ def filter_batch(batch,percentile):
 if __name__ == "__main__":
     env = MazeEnvironmentWrapper()
     
+    torch.manual_seed(SEED)
     network = Network(env.observations_count,HIDDEN_SIZE,env.actions_count)
     objective = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params = network.parameters(),lr=0.001)
@@ -216,7 +247,7 @@ if __name__ == "__main__":
 
         print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_v.item(), reward_mean, reward_bound, len(elite_batch)))
 
-        if reward_mean >= 0.4:
+        if reward_mean > 0.3:
             obs = env.reset()
             done = False
 
