@@ -15,29 +15,29 @@ from enum import Enum
 HIDDEN_SIZE = 256
 BATCH_SIZE = 15
 PERCENTILE = 75
-GAMMA = 0.9
+GAMMA = 0.98
 MAZE_SIZE = 10
 SEED = 1234
 
-maze = np.matrix([
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '.', '.', 'C', '%', '.', '.', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', 'C', '%', '%', '%', '%', '%', '%', 'C', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
-])
+# maze = np.matrix([
+#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+#     ['%', '%', '.', '.', 'C', '%', '.', '.', '%', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+#     ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
+#     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+#     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+#     ['%', 'C', '%', '%', '%', '%', '%', '%', 'C', '%'],
+#     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
+# ])
 
 train_1 = np.matrix([
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', 'C', '%', '%', 'C', '%', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', 'C', '%', '%', 'C', '%', '%', '%', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
@@ -48,17 +48,30 @@ train_1 = np.matrix([
 train_2 = np.matrix([
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '.', '.', '%', 'C', '.', '.', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', 'C', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', 'C', '%', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
+    ['%', '%', 'C', '%', '%', '%', '%', '%', '%', '%']
 ])
 
-test = np.matrix([
+train_3 = np.matrix([
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '.', '.', '%', 'C', '.', '.', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', '%', '%', 'C', '%', '%', '%', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+    ['%', '%', 'C', '%', '%', '%', '%', '%', 'C', '%']
+])
+
+testing = np.matrix([
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
     ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
@@ -78,7 +91,8 @@ class Move(Enum):
     RIGHT = 3
 
 class MazeEnvironmentWrapper():
-    def __init__(self):
+    def __init__(self, maze):        
+        self.maze = maze
         self.init_state = 0
         self.current_state = 0
         self.R = self.get_reward_matrix()
@@ -93,9 +107,9 @@ class MazeEnvironmentWrapper():
         
         for i in range(MAZE_SIZE):
             for j in range(MAZE_SIZE):
-                if maze[i,j] == '%':
+                if self.maze[i,j] == '%':
                     R[i,j] = 0
-                if maze[i,j] == 'C':
+                if self.maze[i,j] == 'C':
                     R[i,j] = 1
         return R
 
@@ -127,10 +141,10 @@ class MazeEnvironmentWrapper():
         
         next_obs = self.get_observation(self.current_state)
 
-        if maze[matrix_position] == 'C':
+        if self.maze[matrix_position] == 'C':
             self.R[matrix_position] = 0
 
-        done = np.all(self.R <= 0) or maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
+        done = np.all(self.R <= 0) or self.maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
         return (next_obs, reward, done)
 
     def valid_move(self, desired_state):
@@ -157,7 +171,6 @@ class MazeEnvironmentWrapper():
                 obstacle_positions.append(matrix_position)
 
         lowest_distance = np.min([self.euclidean_distance(current_position,coin) for coin in coin_positions])
-
         nearest_coin_index = np.where([self.euclidean_distance(current_position,coin) == lowest_distance for coin in coin_positions])[0]
 
         if nearest_coin_index.shape[0] > 1:
@@ -251,15 +264,9 @@ def filter_batch(batch,percentile):
     
     return elite_batch,train_obs,train_act,reward_bound
 
-if __name__ == "__main__":
-    env = MazeEnvironmentWrapper()
-    
-    torch.manual_seed(SEED)
-    network = Network(env.observations_count,HIDDEN_SIZE,env.actions_count)
-    objective = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(params = network.parameters(),lr=0.001)
-    
+def train(env):    
     elite_batch = []
+    
     for iter_no,batch in enumerate(iterate_batches(env,network,BATCH_SIZE)):
 
         reward_mean = float(np.mean(list(map(lambda step:step.reward,batch))))
@@ -280,21 +287,44 @@ if __name__ == "__main__":
 
         print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_v.item(), reward_mean, reward_bound, len(elite_batch)))
 
-        if reward_mean > 2.5:
-            obs = env.reset()
-            done = False
-
-            steps = [obs]
-
-            while not done:
-                action_probabilities = network.forward(torch.FloatTensor([obs]))
-                desired_action = np.where(action_probabilities == torch.max(action_probabilities))[1]
-
-                next_obs, reward, done = env.step(desired_action, False)
-                obs = next_obs
-
-                steps.append(obs)
-            
-            print(steps)
-
+        if reward_mean > 2:
             break
+
+def test(env):
+    obs = env.reset()
+    done = False
+    steps = [obs]
+
+    while not done:
+        action_probabilities = network.forward(torch.FloatTensor([obs]))
+        desired_action = np.where(action_probabilities == torch.max(action_probabilities))[1]
+
+        next_obs, reward, done = env.step(desired_action, False)
+        obs = next_obs
+
+        steps.append(obs)
+    
+    print(steps)
+
+if __name__ == "__main__":
+    torch.manual_seed(SEED)    
+    env = MazeEnvironmentWrapper(train_1)
+
+    network = Network(env.observations_count,HIDDEN_SIZE,env.actions_count)
+    objective = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(params = network.parameters(),lr=0.001)
+    
+    print('training 1st maze')
+    train(env)
+
+    print('training 2nd maze')
+    env = MazeEnvironmentWrapper(train_2)
+    train(env)
+
+    print('training 3rd maze')
+    env = MazeEnvironmentWrapper(train_3)
+    train(env)
+
+    print('testing')
+    env = MazeEnvironmentWrapper(testing)
+    test(env)
