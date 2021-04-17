@@ -9,7 +9,7 @@ import numpy as np
 import json
 from move import Move
 from agent_train import agent_train
-from environment import MazeEnvironmentWrapper
+from environment import Maze
 from multiprocessing import Process
 from multiprocessing.managers import BaseManager
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     manager.start()
     player = manager.Player(0,0)
   
-    env = MazeEnvironmentWrapper(train_1)
+    env = Maze(train_1)
     agent = agent_train(env.observations_count, env.actions_count)
     agent_training = Process(target=training_process, args=(agent, env, player, snapshot_episode))
 

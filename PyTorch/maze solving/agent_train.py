@@ -4,7 +4,6 @@ import numpy as np
 import torch as torch
 import torch.optim as optim
 import torch.nn as nn
-from environment import MazeEnvironmentWrapper
 import asyncio
 
 HIDDEN_SIZE = 256
