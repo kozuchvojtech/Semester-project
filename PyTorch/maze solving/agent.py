@@ -14,18 +14,22 @@ class Agent():
         self.optimizer = optim.Adam(params=self.network.parameters(), lr=learning_rate)
         self.sm = nn.Softmax(dim=1)
 
-    def sample_action(self, obs):
-        obs_v = torch.FloatTensor([obs])
+    def sample_action(self, obs, epsilon):
+        action_probabilities = self.sm(self.network.forward(torch.FloatTensor([obs])))
+        max_action_probability, max_action_index = torch.max(action_probabilities, dim=1)
 
-        act_prob_v = self.sm(self.network(obs_v))
-        act_prob = act_prob_v.data.numpy()[0]
-
-        return np.random.choice(len(act_prob),p=act_prob)
+        if torch.rand(1,).item() > epsilon:
+            return max_action_index.item()
+        else:
+            action_probabilities = action_probabilities.data.numpy()[0]
+            return np.random.choice(len(action_probabilities),p=action_probabilities)
     
-    def get_action(self, obs):
+    def choose_action(self, obs):
         with torch.no_grad():
-            act_prob_v = self.network.forward(torch.FloatTensor([obs]))
-            return np.where(act_prob_v == torch.max(act_prob_v))[1]
+            action_probabilities = self.sm(self.network.forward(torch.FloatTensor([obs])))
+            max_action_probability, max_action_index = torch.max(action_probabilities, dim=1)
+
+            return max_action_index.item()
 
     def train(self, elite_batch, obs, act):
         obs_v = torch.FloatTensor(obs)

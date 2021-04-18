@@ -92,14 +92,14 @@ agent = Agent(layer_sizes, SEED, LEARNING_RATE)
 Episode = namedtuple('Episode', field_names = ['reward','steps'])
 EpisodeStep = namedtuple('EpisodeStep',field_names = ['observation','action'])
 
-def iterate_batches(maze):
+def iterate_batches(maze, epsilon):
     batch = []
     episode_reward = 0.0
     episode_steps = []
     obs = env.reset(maze)
 
     while True:
-        action = agent.sample_action(obs)
+        action = agent.sample_action(obs, epsilon)
         next_obs, reward, is_done = env.step(action)
 
         episode_reward += reward
@@ -135,9 +135,10 @@ def filter_batch(batch,percentile):
 
 def train(episodeSnapshot):
     for training_map in training_maps:
+        epsilon = 1
         elite_batch = []
                 
-        for iter_no,batch in enumerate(iterate_batches(training_map.data)):
+        for iter_no,batch in enumerate(iterate_batches(training_map.data, epsilon)):
 
             reward_mean = float(np.mean(list(map(lambda step:step.reward,batch))))
             elite_batch,obs,act,reward_bound = filter_batch(elite_batch+batch,PERCENTILE)
@@ -153,12 +154,15 @@ def train(episodeSnapshot):
             loss_value = agent.train(elite_batch, obs, act)
 
             print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_value, reward_mean, reward_bound, len(elite_batch)))
-
-            if reward_mean > 2.5:
+            
+            if reward_mean > 3.5:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
                 episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
                 break
+
+            if epsilon > 0.05:
+                epsilon -= (1 / 5000)
         
     agent.save_trained_model()
 
@@ -171,7 +175,7 @@ def test(episodeSnapshot):
     reward_sum = 0
 
     while not done:
-        action = agent.get_action(obs)[0]
+        action = agent.choose_action(obs)
         next_obs, reward, done = env.step(action)
         reward_sum += reward
 
