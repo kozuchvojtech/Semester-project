@@ -21,6 +21,11 @@ class Agent():
         act_prob = act_prob_v.data.numpy()[0]
 
         return np.random.choice(len(act_prob),p=act_prob)
+    
+    def get_action(self, obs):
+        with torch.no_grad():
+            act_prob_v = self.network.forward(torch.FloatTensor([obs]))
+            return np.where(act_prob_v == torch.max(act_prob_v))[1]
 
     def train(self, elite_batch, obs, act):
         obs_v = torch.FloatTensor(obs)
@@ -34,3 +39,9 @@ class Agent():
         self.optimizer.step()
 
         return loss_v.item()
+    
+    def load_pretrained_model(self, model_path="model/grab-coin-cross_entropy.pth"):
+        self.network.load_state_dict(torch.load(model_path))
+
+    def save_trained_model(self, model_path="model/grab-coin-cross_entropy.pth"):
+        torch.save(self.network.state_dict(), model_path)

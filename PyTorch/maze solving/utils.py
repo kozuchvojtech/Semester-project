@@ -2,7 +2,6 @@ import pygame
 import numpy as np
 from PIL import Image, ImageOps
 
-
 ######################## Initialize colours ########################
 # RED
 redColour = pygame.Color(200,0,0)
@@ -32,7 +31,7 @@ def button(playSurface, msg, x, y, w, h, inactive, active, action=None):
     else:
         pygame.draw.rect(playSurface, inactive, (x, y, w, h))
     
-    smallText = pygame.font.Font('arial.ttf', 20)
+    smallText = pygame.font.Font('arcade.ttf', 14)
     textSurf, textRect = text_object(msg, smallText, blackColour)
     textRect.center = (x+w//2, y+h//2)
     playSurface.blit(textSurf, textRect)
@@ -42,18 +41,8 @@ def text_object(text, font, color):
 	return textSurface, textSurface.get_rect()
 
 def message_display(display, text, display_width, display_height):
-	largeText = pygame.font.Font('arial.ttf', 115)
+	largeText = pygame.font.Font('arcade.ttf', 115)
 	TextSurf, TextRect = text_object(text, largeText)
 	TextRect.center = (display_width//2, display_height//2)
 	display.blit(TextSurf, TextRect)
 	pygame.display.flip()
-
-def screenshot(playSurface, size, invert=False): #TODO - cv2 version
-	data = pygame.image.tostring(playSurface, 'RGB')
-	image = Image.frombytes('RGB', size, data)
-	image = image.convert('L')
-	image = image.resize(size)
-	image = ImageOps.invert(image) if invert else image
-	image = image.convert('1')
-	matrix = np.asarray(image.getdata(), dtype=np.float64)
-	return matrix.reshape(image.size[0], image.size[1])

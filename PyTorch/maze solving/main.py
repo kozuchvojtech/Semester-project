@@ -62,18 +62,21 @@ training_maps = np.array([
     )
 ])
 
-testing = np.matrix([
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '.', '.', 'C', '%', '.', '.', '%', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
-    ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
-    ['%', 'C', '%', '%', '%', '%', '%', '%', 'C', '%'],
-    ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%']
-])
+testing_map = Map(
+    'static/map/testing.json',
+    np.matrix([
+        ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
+        ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', 'C'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', 'C'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
+        ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
+        ['%', 'C', '%', '%', '%', '%', '%', '%', '%', '%'],
+        ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%']
+    ])
+)
 
 HIDDEN_SIZE = 256
 BATCH_SIZE = 15
@@ -130,8 +133,6 @@ def filter_batch(batch,percentile):
     
     return elite_batch,train_obs,train_act,reward_bound
 
-# training
-
 def train(episodeSnapshot):
     for training_map in training_maps:
         elite_batch = []
@@ -144,10 +145,10 @@ def train(episodeSnapshot):
             if not elite_batch:
                 continue
 
-            if iter_no % 10 == 0:
+            if iter_no % 20 == 0:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
-                episodeSnapshot.snapshot(episode_actions, training_map.path)
+                episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
 
             loss_value = agent.train(elite_batch, obs, act)
 
@@ -156,26 +157,65 @@ def train(episodeSnapshot):
             if reward_mean > 2.5:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
-                episodeSnapshot.snapshot(episode_actions, training_map.path)
+                episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
                 break
+        
+    agent.save_trained_model()
 
-def main_loop(episodeSnapshot):
-    game = Game(episodeSnapshot)
+def test(episodeSnapshot):
+    agent.load_pretrained_model()
+
+    obs = env.reset(testing_map.data)
+    done = False
+    actions = []
+    reward_sum = 0
+
+    while not done:
+        action = agent.get_action(obs)[0]
+        next_obs, reward, done = env.step(action)
+        reward_sum += reward
+
+        obs = next_obs
+        actions.append(action)
+
+    episodeSnapshot.snapshot(actions, reward_sum, testing_map.path)
+
+def main_loop(episodeSnapshot, map_path):
+    game = Game(episodeSnapshot, map_path)
 
     visualizer = Visualizer(game)
     visualizer.main_loop()
-        
-if __name__ == '__main__':
+
+def process_training():
     BaseManager.register('EpisodeSnapshot', EpisodeSnapshot)
     manager = BaseManager()
     manager.start()
     episodeSnapshot = manager.EpisodeSnapshot('static/map/training_1.json')
 
     training_process = Process(target=train, args=(episodeSnapshot,))
-    main_loop_process = Process(target=main_loop, args=(episodeSnapshot,))
+    main_loop_process = Process(target=main_loop, args=(episodeSnapshot,'static/map/default.json'))
 
     training_process.start()
     main_loop_process.start()
 
     training_process.join(None)
     main_loop_process.join(None)
+
+def process_testing():
+    BaseManager.register('EpisodeSnapshot', EpisodeSnapshot)
+    manager = BaseManager()
+    manager.start()
+    episodeSnapshot_testing = manager.EpisodeSnapshot('static/map/testing.json')
+
+    testing_process = Process(target=test, args=(episodeSnapshot_testing,))
+    main_loop_process = Process(target=main_loop, args=(episodeSnapshot_testing,'static/map/testing_map.json'))
+
+    testing_process.start()
+    main_loop_process.start()
+
+    testing_process.join(None)
+    main_loop_process.join(None)
+        
+if __name__ == '__main__':
+    visualizer = Visualizer()
+    visualizer.intro(process_training, process_testing)

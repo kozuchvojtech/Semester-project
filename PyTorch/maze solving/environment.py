@@ -31,7 +31,7 @@ class Maze():
 
         return self.get_observation(self.current_state)
     
-    def step(self, action, training=True):
+    def step(self, action):
         self.current_episode_steps += 1
         action = Move(action)
 

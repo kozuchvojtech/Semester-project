@@ -2,14 +2,34 @@ import pygame
 import numpy as np
 import json
 from simple_value_object import ValueObject
+from utils import text_object, message_display, button
+import asyncio
 
 from move import Move
 
 TILE_SIZE = 36
-HERO_SIZE = 44
+HERO_SIZE = 48
+
+######################## Initialize colours ########################
+# RED
+redColour = pygame.Color(200,0,0)
+brightRedColour = pygame.Color(255,0,0)
+# GREEN
+brightGreenColour = pygame.Color(0,255,0)
+greenColour = pygame.Color(0,200,0)
+brightGreenColour1 = (150, 255, 150)
+darkGreenColour1 = (0, 155, 0)
+# BLACK
+blackColour = pygame.Color(0,0,0)
+# WHITE
+whiteColour = pygame.Color(255,255,255)
+# GRAY
+greyColour = pygame.Color(150,150,150)
+LightGrey = pygame.Color(220,220,220)
+####################################################################
 
 class Episode(ValueObject):
-    def __init__(self, actions, map_path):
+    def __init__(self, actions, reward, map_path):
         pass
 
 class Coin:
@@ -54,7 +74,7 @@ class Hero:
         self.init_x, self.init_y = x*TILE_SIZE+TILE_SIZE, y*TILE_SIZE+TILE_SIZE
         self.x, self.y = self.init_x, self.init_y 
         self.episodes = []
-        self.curr_episode = Episode([], '')
+        self.curr_episode = Episode([], 0, '')
         self.on_episode_changed = on_episode_changed
     
     def populate_image(self):
@@ -62,7 +82,7 @@ class Hero:
         self.img = pygame.image.load(self.file_name)
         self.img = pygame.transform.scale(self.img, (HERO_SIZE,HERO_SIZE))
         self.img_rect = self.img.get_rect()
-        self.img_rect.topleft = (self.x, self.y-20)
+        self.img_rect.topleft = (self.x, self.y-25)
 
     def get_position(self, move):
         try:
@@ -83,7 +103,7 @@ class Hero:
             pass
     
     def append_episode(self, episode):
-        self.episodes.append(Episode(list(np.repeat(episode.actions, TILE_SIZE/6)), episode.map_path))
+        self.episodes.append(Episode(list(np.repeat(episode.actions, TILE_SIZE/6)), episode.reward, episode.map_path))
     
     def iterate_episodes(self):
         if self.episodes and not self.curr_episode.actions:
@@ -95,7 +115,7 @@ class Hero:
         if self.curr_episode.actions:
             curr_episode_actions = list(self.curr_episode.actions)
             self.move = Move(curr_episode_actions.pop(0))
-            self.curr_episode = Episode(curr_episode_actions, self.curr_episode.map_path)
+            self.curr_episode = Episode(curr_episode_actions, self.curr_episode.reward, self.curr_episode.map_path)
             return self.move
     
     def show(self, game_display):
@@ -113,23 +133,55 @@ class Hero:
 
             self.populate_image()
             game_display.blit(self.img, self.img_rect)
-
-            return self.curr_episode.map_path
+            
+            return (not self.curr_episode.actions, self.curr_episode.reward)
+        
+        return (False, 0)
 
 class EpisodeSnapshot():
     def __init__(self, map_path):
-        self.episode = []
+        self.actions = []
+        self.reward = 0
         self.map_path = map_path
 
-    def snapshot(self, episode, map_path):
-        self.episode = episode
+    def snapshot(self, actions, reward, map_path):
+        self.actions = actions
+        self.reward = reward
         self.map_path = map_path
     
     def get_episode(self):
-        return Episode(self.episode, self.map_path)
+        return Episode(self.actions, self.reward, self.map_path)
+
+class AnimatedHero(pygame.sprite.Sprite):
+    def __init__(self, position_x, position_y, hero_type='greeting'):
+        super().__init__()
+
+        self.images = []
+        self.shadow_img = pygame.image.load('static/player/shadow.png')
+
+        for i in range(30):
+            self.images.append(pygame.image.load(f'static/player/{hero_type}/{i+1}.png'))
+        
+        self.index = 0
+        self.image = self.images[self.index]
+        self.rect = self.image.get_rect()
+        self.shadow_rect = self.shadow_img.get_rect()
+        self.rect.midtop = (position_x, position_y)
+        self.shadow_rect.midtop = (position_x, position_y + (self.image.get_height()-14))
+
+    def update(self):
+        self.index += 1
+        if self.index >= len(self.images):
+            self.index = 0
+
+        self.image = self.images[self.index]
+    
+    def draw(self, screen):
+        screen.blit(self.shadow_img, self.shadow_rect)
+        screen.blit(self.image, self.rect)
 
 class Game:
-    def __init__(self, episodeSnapshot, display_width = 432, display_height = 432):
+    def __init__(self, episodeSnapshot, map_path='static/map/default.json', display_width = 432, display_height = 432):
         pygame.display.set_caption('Grab the coin!')
         pygame.init()
 
@@ -140,19 +192,15 @@ class Game:
         self.game_display = pygame.display.set_mode((self.display_width, self.display_height))
 
         self.episodeSnapshot = episodeSnapshot
-        self.last_appended_episode = self.episodeSnapshot.get_episode()
-        self.last_displayed_episode = self.last_appended_episode
-        self.curr_map_path = self.last_appended_episode.map_path
+        self.curr_map_path = self.episodeSnapshot.get_episode().map_path
+        self.last_appended_episode = None
         
-        self.populate_map(self.game_display)
+        self.populate_map(map_path)
         self.populate_coins(self.curr_map_path)
         self.populate_hero()
         
     def play(self):
         self.draw_background()
-
-        for road in self.roads:
-            road.show(self.game_display)
             
         if any(self.hero.x == coin.x and self.hero.y == coin.y for coin in self.coins):
             for coin in self.coins:
@@ -163,10 +211,40 @@ class Game:
             coin.show(self.game_display)
 
         self.append_episode()
-        self.hero.show(self.game_display)
+        done, reward = self.hero.show(self.game_display)
 
         pygame.display.flip()
         self.fpsClock.tick(30)
+        return done, reward
+    
+    def gameOver(self, score):
+        player_sprite = AnimatedHero(self.display_width//2, self.display_height//2 - 20)
+
+        for _ in range(30):
+            self.draw_background()
+
+            surface = pygame.Surface([self.display_width,self.display_height], pygame.SRCALPHA)
+            surface.set_alpha(120)
+            surface.fill(pygame.Color(255,255,255))
+
+            gameOverFont = pygame.font.Font('arcade.ttf', 48)
+            gameOverSurf, gameOverRect = text_object('Game Over', gameOverFont, pygame.Color(120,120,120))
+            gameOverRect.midtop = (self.display_width//2, self.display_height//2 - 120)
+            
+            scoreFont = pygame.font.Font('arcade.ttf', 36)
+            scoreSurf, scoreRect = text_object('Reward '+str(int(score)), scoreFont, pygame.Color(120,120,120))
+            scoreRect = scoreSurf.get_rect()
+            scoreRect.midtop = (self.display_width//2, self.display_height//2 + 100)
+
+            self.game_display.blit(surface, (0,0))
+            self.game_display.blit(gameOverSurf, gameOverRect)        
+            self.game_display.blit(scoreSurf, scoreRect)
+
+            player_sprite.update()
+            player_sprite.draw(self.game_display)
+            
+            pygame.display.flip()
+            self.fpsClock.tick(30)        
     
     def on_episode_changed(self, episode):
         if episode.actions:
@@ -178,7 +256,7 @@ class Game:
         prev_episode = self.last_appended_episode
         self.last_appended_episode = self.episodeSnapshot.get_episode()
 
-        if self.last_appended_episode.actions and prev_episode.actions != self.last_appended_episode.actions:
+        if not prev_episode or (self.last_appended_episode.actions and prev_episode.actions != self.last_appended_episode.actions):
             self.hero.append_episode(self.last_appended_episode)
     
     def draw_background(self):
@@ -192,9 +270,12 @@ class Game:
             for j in np.linspace(0, self.game_display.get_height(), num=7):
                 land_rect.topleft = (i,j)
                 self.game_display.blit(land_image, land_rect)
+        
+        for road in self.roads:
+            road.show(self.game_display)
 
-    def populate_map(self, playground):
-        with open('static/map/default.json') as f:
+    def populate_map(self, map_path):
+        with open(map_path) as f:
             records = json.load(f)
 
         roads = []
@@ -221,10 +302,58 @@ class Game:
         self.hero = Hero(0,0, self.on_episode_changed)
 
 class Visualizer:
-    def __init__(self, game):
+    def __init__(self, game=None):
         self.game = game
 
     def main_loop(self):
-        while True:
-            pygame.event.get()
-            self.game.play()
+        done = False
+
+        while not done:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    done = True
+
+            episode_done, episode_reward = self.game.play()
+            if episode_done:
+                self.game.gameOver(episode_reward)
+
+    def intro(self, training, testing):
+        pygame.display.set_caption('Grab the coin!')
+        pygame.init()
+        display_width, display_height = 432,432
+        game_display = pygame.display.set_mode((display_width, display_height))
+        fpsClock = pygame.time.Clock()
+        
+        intro = True
+        while intro:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+            width = game_display.get_width()
+            height = game_display.get_height()
+
+            land_image = pygame.image.load('static/land.png')
+            land_image = pygame.transform.scale(land_image, (width//6, height//6))
+            land_rect = land_image.get_rect()
+
+            for i in np.linspace(0, width, num=7):
+                for j in np.linspace(0, height, num=7):
+                    land_rect.topleft = (i,j)
+                    game_display.blit(land_image, land_rect)
+            
+            gameOverFont = pygame.font.Font('arcade.ttf', 36)
+            gameOverSurf, gameOverRect = text_object('Grab The Coin!', gameOverFont, pygame.Color(120,120,120))
+            gameOverRect.midtop = (width//2, height//2 - 120)
+            game_display.blit(gameOverSurf, gameOverRect)
+            
+            player_sprite = AnimatedHero(game_display.get_width()//2, game_display.get_height()//2 - 20, hero_type='idle')
+
+            player_sprite.update()
+            player_sprite.draw(game_display)
+            
+            button(game_display,'train', width//8, height//8*7, width//6, height//8, pygame.Color(120,120,120), pygame.Color(150,150,150), training)
+            button(game_display,'test', width//4*3, height//8*7, width//6, height//8, pygame.Color(120,120,120), pygame.Color(150,150,150), testing)
+                        
+            pygame.display.update()

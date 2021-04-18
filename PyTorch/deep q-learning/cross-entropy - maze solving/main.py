@@ -1,10 +1,6 @@
-import gym
 from collections import namedtuple
 import numpy as np
 import math as math
-
-import networkx as nx
-import pylab as plt
 
 import torch
 import torch.nn as nn
@@ -280,18 +276,20 @@ def train(env):
 def test(env):
     obs = env.reset()
     done = False
-    steps = [obs]
+    actions = []
 
     while not done:
         action_probabilities = network.forward(torch.FloatTensor([obs]))
+        print(action_probabilities)
+
         desired_action = np.where(action_probabilities == torch.max(action_probabilities))[1]
 
         next_obs, reward, done = env.step(desired_action, False)
         obs = next_obs
 
-        steps.append(obs)
+        actions.append(desired_action)
     
-    print(steps)
+    print(actions)
 
 if __name__ == "__main__":
     torch.manual_seed(SEED)    
