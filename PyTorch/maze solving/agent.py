@@ -15,27 +15,23 @@ class Agent():
         self.sm = nn.Softmax(dim=1)
 
     def sample_action(self, obs, epsilon):
-        action_probabilities = self.sm(self.network.forward(torch.FloatTensor([obs])))
-        max_action_probability, max_action_index = torch.max(action_probabilities, dim=1)
+        actions = self.sm(self.network(torch.FloatTensor([obs])))
 
         if torch.rand(1,).item() > epsilon:
-            return max_action_index.item()
+            return torch.argmax(actions, dim=1).item()
         else:
-            action_probabilities = action_probabilities.data.numpy()[0]
+            action_probabilities = actions.data.numpy()[0]
             return np.random.choice(len(action_probabilities),p=action_probabilities)
     
     def choose_action(self, obs):
-        with torch.no_grad():
-            action_probabilities = self.sm(self.network.forward(torch.FloatTensor([obs])))
-            max_action_probability, max_action_index = torch.max(action_probabilities, dim=1)
-
-            return max_action_index.item()
+        actions = self.network(torch.FloatTensor([obs]))
+        return torch.argmax(actions, dim=1).item()
 
     def train(self, elite_batch, obs, act):
         elite_batch = elite_batch[-500:]
 
         self.optimizer.zero_grad()
-        action_scores = self.network.forward(torch.FloatTensor(obs))
+        action_scores = self.network(torch.FloatTensor(obs))
         loss_v = self.objective_func(action_scores,torch.LongTensor(act))
         loss_v.backward()
         self.optimizer.step()

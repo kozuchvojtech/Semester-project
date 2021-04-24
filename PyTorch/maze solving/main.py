@@ -258,7 +258,7 @@ def train(episodeSnapshot):
                 break
 
             if epsilon > 0.01:
-                epsilon -= 0.002
+                epsilon -= 0.003
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=iterations, y=loss_func_values, name='loss function'))
