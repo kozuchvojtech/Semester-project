@@ -3,6 +3,7 @@ from collections import namedtuple
 from multiprocessing import Process
 from multiprocessing.managers import BaseManager
 from simple_value_object import ValueObject
+import plotly.graph_objects as go
 
 from environment import Maze
 from agent import Agent
@@ -59,6 +60,81 @@ training_maps = np.array([
             ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
             ['%', '%', 'C', '%', '%', '%', '%', '%', 'C', '%']
         ])
+    ),
+    Map(
+        'static/map/training_4.json',
+        np.matrix([
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', 'C', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', 'C'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', 'C', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', 'C', '%', '%']
+        ])
+    ),
+    Map(
+        'static/map/training_5.json',
+        np.matrix([
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', 'C'],
+            ['%', '%', '%', '%', 'C', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', 'C'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', 'C', '%', '%', '%', '%', '%', '%', '%']
+        ])
+    ),
+    Map(
+        'static/map/training_6.json',
+        np.matrix([
+            ['C', '%', '%', '%', '%', '%', '%', '%', '%', 'C'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', 'C']
+        ])
+    ),
+    Map(
+        'static/map/training_7.json',
+        np.matrix([
+            ['C', '%', '%', '%', '%', '%', '%', '%', '%', 'C'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['C', '%', '%', '%', '%', '%', '%', '%', '%', '%']
+        ])
+    ),
+    Map(
+        'static/map/training_8.json',
+        np.matrix([
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', 'C', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', 'C'],
+            ['%', '%', '.', '.', '%', '%', '.', '.', '%', '%'],
+            ['%', '%', '%', 'C', '%', '%', '%', '%', '%', '%'],
+            ['%', '%', '%', '%', '%', '%', '%', 'C', '%', '%']
+        ])
     )
 ])
 
@@ -68,7 +144,7 @@ testing_map = Map(
         ['%', '%', '%', '%', '%', 'C', '%', '%', '%', '%'],
         ['%', '%', '%', '%', '%', '%', '%', '%', '%', '%'],
         ['%', '%', '.', '.', '.', '.', '.', '.', '%', 'C'],
-        ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
+        ['%', 'C', '.', '.', '.', '.', '.', '.', '%', '%'],
         ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
         ['%', '%', '.', '.', '.', '.', '.', '.', '%', 'C'],
         ['%', '%', '.', '.', '.', '.', '.', '.', '%', '%'],
@@ -81,9 +157,11 @@ testing_map = Map(
 HIDDEN_SIZE = 256
 BATCH_SIZE = 15
 GAMMA = 0.98
-PERCENTILE = 75
+PERCENTILE = 25
 SEED = 1234
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.003
+EPISODES_THRESHOLD = 250
+DESIRED_REWARD = 3.75
 
 env = Maze()
 layer_sizes = [env.observations_count, HIDDEN_SIZE, env.actions_count]
@@ -134,6 +212,13 @@ def filter_batch(batch,percentile):
     return elite_batch,train_obs,train_act,reward_bound
 
 def train(episodeSnapshot):
+    iterations = []
+    loss_func_values = []
+    reward_mean_values = []
+
+    iterations_count = 0
+    last_snapshot_iteration = 0
+
     for training_map in training_maps:
         epsilon = 1
         elite_batch = []
@@ -146,24 +231,35 @@ def train(episodeSnapshot):
             if not elite_batch:
                 continue
 
-            if iter_no % 20 == 0:
+            if iterations_count % 20 == 0 or abs(last_snapshot_iteration-iter_no) > 50:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
                 episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
+                last_snapshot_iteration = iter_no
 
             loss_value = agent.train(elite_batch, obs, act)
 
-            print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, batch=%d" % (iter_no, loss_value, reward_mean, reward_bound, len(elite_batch)))
+            iterations_count += 1
+            iterations.append(iterations_count)
+            loss_func_values.append(loss_value)
+            reward_mean_values.append(reward_mean)
+
+            print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, epsilon=%.3f" % (iter_no, loss_value, reward_mean, reward_bound, epsilon))
             
-            if reward_mean > 3.5:
+            if reward_mean > DESIRED_REWARD or iter_no > EPISODES_THRESHOLD:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
                 episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
                 break
 
-            if epsilon > 0.05:
-                epsilon -= (1 / 5000)
-        
+            if epsilon > 0.01:
+                epsilon -= 0.001
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=iterations, y=loss_func_values, name='loss function'))
+    fig.add_trace(go.Scatter(x=iterations, y=reward_mean_values, name='reward mean'))
+    
+    fig.write_image("training_loss.png")
     agent.save_trained_model()
 
 def test(episodeSnapshot):

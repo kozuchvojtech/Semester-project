@@ -140,17 +140,17 @@ class Hero:
 
 class EpisodeSnapshot():
     def __init__(self, map_path):
-        self.actions = []
-        self.reward = 0
-        self.map_path = map_path
+        self.init_episode = Episode([], 0, map_path)
+        self.episodes = [self.init_episode]
 
     def snapshot(self, actions, reward, map_path):
-        self.actions = actions
-        self.reward = reward
-        self.map_path = map_path
+        self.episodes.append(Episode(actions, reward, map_path))
     
     def get_episode(self):
-        return Episode(self.actions, self.reward, self.map_path)
+        if self.episodes:
+            return self.episodes.pop(0)
+        else:
+            return self.init_episode
 
 class AnimatedHero(pygame.sprite.Sprite):
     def __init__(self, position_x, position_y, hero_type='greeting'):

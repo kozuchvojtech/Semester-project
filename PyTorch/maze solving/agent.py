@@ -32,13 +32,11 @@ class Agent():
             return max_action_index.item()
 
     def train(self, elite_batch, obs, act):
-        obs_v = torch.FloatTensor(obs)
-        act_v = torch.LongTensor(act)
         elite_batch = elite_batch[-500:]
 
         self.optimizer.zero_grad()
-        action_scores_v = self.network(obs_v)
-        loss_v = self.objective_func(action_scores_v,act_v)
+        action_scores = self.network.forward(torch.FloatTensor(obs))
+        loss_v = self.objective_func(action_scores,torch.LongTensor(act))
         loss_v.backward()
         self.optimizer.step()
 
