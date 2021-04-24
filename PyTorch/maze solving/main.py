@@ -215,12 +215,13 @@ def train(episodeSnapshot):
     iterations = []
     loss_func_values = []
     reward_mean_values = []
+    epsilon_values = []
 
     iterations_count = 0
     last_snapshot_iteration = 0
-
+    
+    epsilon = 1
     for training_map in training_maps:
-        epsilon = 1
         elite_batch = []
                 
         for iter_no,batch in enumerate(iterate_batches(training_map.data, epsilon)):
@@ -229,9 +230,12 @@ def train(episodeSnapshot):
             elite_batch,obs,act,reward_bound = filter_batch(elite_batch+batch,PERCENTILE)
 
             if not elite_batch:
-                continue
+                if iter_no > EPISODES_THRESHOLD:
+                    break
+                else:
+                    continue
 
-            if iterations_count % 20 == 0 or abs(last_snapshot_iteration-iter_no) > 50:
+            if iter_no == 0 or abs(last_snapshot_iteration-iter_no) > 25:
                 episode = elite_batch[0]
                 episode_actions = list(map(lambda step:step.action,episode.steps))
                 episodeSnapshot.snapshot(episode_actions, episode.reward, training_map.path)
@@ -243,6 +247,7 @@ def train(episodeSnapshot):
             iterations.append(iterations_count)
             loss_func_values.append(loss_value)
             reward_mean_values.append(reward_mean)
+            epsilon_values.append(epsilon)
 
             print("%d: loss=%.3f, reward_mean=%.3f, reward_bound=%.3f, epsilon=%.3f" % (iter_no, loss_value, reward_mean, reward_bound, epsilon))
             
@@ -253,11 +258,12 @@ def train(episodeSnapshot):
                 break
 
             if epsilon > 0.01:
-                epsilon -= 0.001
+                epsilon -= 0.002
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=iterations, y=loss_func_values, name='loss function'))
     fig.add_trace(go.Scatter(x=iterations, y=reward_mean_values, name='reward mean'))
+    fig.add_trace(go.Scatter(x=iterations, y=epsilon_values, name='epsilon'))
     
     fig.write_image("training_loss.png")
     agent.save_trained_model()
