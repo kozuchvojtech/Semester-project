@@ -3,7 +3,7 @@ import math as math
 from move import Move
 
 class Maze():
-    def __init__(self, actions_count=4, observations_count=8, episode_threshold=100):        
+    def __init__(self, actions_count=4, observations_count=8, episode_threshold=50):        
         self.actions_count = actions_count
         self.observations_count = observations_count
         self.init_state = 0

@@ -29,7 +29,7 @@ LightGrey = pygame.Color(220,220,220)
 ####################################################################
 
 class Episode(ValueObject):
-    def __init__(self, actions, reward, map_path):
+    def __init__(self, actions, reward, map_path, coin_positions):
         pass
 
 class Coin:
@@ -74,7 +74,7 @@ class Hero:
         self.init_x, self.init_y = x*TILE_SIZE+TILE_SIZE, y*TILE_SIZE+TILE_SIZE
         self.x, self.y = self.init_x, self.init_y 
         self.episodes = []
-        self.curr_episode = Episode([], 0, '')
+        self.curr_episode = Episode([], 0, '', [])
         self.on_episode_changed = on_episode_changed
     
     def populate_image(self):
@@ -103,7 +103,7 @@ class Hero:
             pass
     
     def append_episode(self, episode):
-        self.episodes.append(Episode(list(np.repeat(episode.actions, TILE_SIZE/6)), episode.reward, episode.map_path))
+        self.episodes.append(Episode(list(np.repeat(episode.actions, TILE_SIZE/6)), episode.reward, episode.map_path, episode.coin_positions))
     
     def iterate_episodes(self):
         if self.episodes and not self.curr_episode.actions:
@@ -115,7 +115,7 @@ class Hero:
         if self.curr_episode.actions:
             curr_episode_actions = list(self.curr_episode.actions)
             self.move = Move(curr_episode_actions.pop(0))
-            self.curr_episode = Episode(curr_episode_actions, self.curr_episode.reward, self.curr_episode.map_path)
+            self.curr_episode = Episode(curr_episode_actions, self.curr_episode.reward, self.curr_episode.map_path, self.curr_episode.coin_positions)
             return self.move
     
     def show(self, game_display):
@@ -140,11 +140,11 @@ class Hero:
 
 class EpisodeSnapshot():
     def __init__(self, map_path):
-        self.init_episode = Episode([], 0, map_path)
+        self.init_episode = Episode([], 0, map_path, [])
         self.episodes = [self.init_episode]
 
-    def snapshot(self, actions, reward, map_path):
-        self.episodes.append(Episode(actions, reward, map_path))
+    def snapshot(self, actions, reward, map_path, coin_positions):
+        self.episodes.append(Episode(actions, reward, map_path, coin_positions))
     
     def get_episode(self):
         if self.episodes:
@@ -181,7 +181,7 @@ class AnimatedHero(pygame.sprite.Sprite):
         screen.blit(self.image, self.rect)
 
 class Game:
-    def __init__(self, episodeSnapshot, map_path='static/map/default.json', display_width = 432, display_height = 432):
+    def __init__(self, episodeSnapshot, display_width = 432, display_height = 432):
         pygame.display.set_caption('Grab the coin!')
         pygame.init()
 
@@ -192,11 +192,11 @@ class Game:
         self.game_display = pygame.display.set_mode((self.display_width, self.display_height))
 
         self.episodeSnapshot = episodeSnapshot
-        self.curr_map_path = self.episodeSnapshot.get_episode().map_path
+        self.curr_episode = self.episodeSnapshot.get_episode()
         self.last_appended_episode = None
         
-        self.populate_map(map_path)
-        self.populate_coins(self.curr_map_path)
+        self.populate_map()
+        self.populate_coins()
         self.populate_hero()
         
     def play(self):
@@ -248,9 +248,13 @@ class Game:
     
     def on_episode_changed(self, episode):
         if episode.actions:
-            if episode.map_path != self.curr_map_path:
-                self.curr_map_path = episode.map_path
-            self.populate_coins(self.curr_map_path)
+            prev_map_path = self.curr_episode.map_path
+            self.curr_episode = episode
+
+            if self.curr_episode.map_path != prev_map_path:
+                self.populate_map()
+
+            self.populate_coins()
 
     def append_episode(self):
         prev_episode = self.last_appended_episode
@@ -274,8 +278,8 @@ class Game:
         for road in self.roads:
             road.show(self.game_display)
 
-    def populate_map(self, map_path):
-        with open(map_path) as f:
+    def populate_map(self):
+        with open(self.curr_episode.map_path) as f:
             records = json.load(f)
 
         roads = []
@@ -286,14 +290,11 @@ class Game:
         
         self.roads = roads
 
-    def populate_coins(self, map_path):
-        with open(map_path) as f:
-            records = json.load(f)
-        
+    def populate_coins(self):
         coins = []
 
-        for record in records:
-            coin = Coin(record['x'], record['y'])
+        for coin_position in self.curr_episode.coin_positions:
+            coin = Coin(coin_position[1], coin_position[0])
             coins.append(coin)
 
         self.coins = coins
