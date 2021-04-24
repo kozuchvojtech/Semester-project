@@ -22,12 +22,16 @@ class Maze():
                 if self.maze[i,j] == 'C':
                     R[i,j] = 1
         return R
+    
+    def update_reward_matrix(self):
+        self.R = self.get_reward_matrix()
 
-    def reset(self, maze):
+    def reset(self, maze, on_coin_grabbed=None):
         self.maze = maze
         self.current_state = self.init_state
         self.current_episode_steps = 0
-        self.R = self.get_reward_matrix()
+        self.update_reward_matrix()
+        self.on_coin_grabbed = on_coin_grabbed
 
         return self.get_observation(self.current_state)
     
@@ -55,7 +59,14 @@ class Maze():
         if self.maze[matrix_position] == 'C':
             self.R[matrix_position] = 0
 
-        done = np.all(self.R <= 0) or self.maze[matrix_position] == '.' or not self.valid_move(desired_state) or self.current_episode_steps > self.episode_steps_threshold
+            if self.on_coin_grabbed:
+                self.on_coin_grabbed(matrix_position)
+
+        done = np.all(self.R <= 0) or \
+               self.maze[matrix_position] == '.' or  \
+               not self.valid_move(desired_state) or \
+               (self.episode_steps_threshold and self.current_episode_steps > self.episode_steps_threshold)
+               
         return (next_obs, reward, done)
 
     def valid_move(self, desired_state):
