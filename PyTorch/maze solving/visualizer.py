@@ -29,7 +29,7 @@ LightGrey = pygame.Color(220,220,220)
 ####################################################################
 
 class Episode(ValueObject):
-    def __init__(self, actions, reward, map_path, coin_positions):
+    def __init__(self, hero_position, actions, reward, map_path, coin_positions):
         pass
 
 class Coin:
@@ -71,13 +71,16 @@ class Hero:
     def __init__(self,x,y,on_episode_changed,manual_mode=False):
         self.move = Move.RIGHT
         self.animation_index = 1
-        self.init_x, self.init_y = x*TILE_SIZE+TILE_SIZE, y*TILE_SIZE+TILE_SIZE
+        self.init_x, self.init_y = self.calculate_position((y,x))
         self.x, self.y = self.init_x, self.init_y 
         self.episodes = []
-        self.curr_episode = Episode([], 0, '', [])
+        self.curr_episode = Episode((0,0), [], 0, '', [])
         self.actions = []
         self.on_episode_changed = on_episode_changed
         self.manual_mode = manual_mode
+
+    def calculate_position(self, coords):
+        return coords[1]*TILE_SIZE+TILE_SIZE, coords[0]*TILE_SIZE+TILE_SIZE
     
     def populate_image(self):
         self.file_name = f'static/player/{self.move.name.lower()}/{self.animation_index}.png'
@@ -105,19 +108,18 @@ class Hero:
             pass
     
     def append_episode(self, episode):
-        self.episodes.append(Episode(list(np.repeat(episode.actions, TILE_SIZE/6)), episode.reward, episode.map_path, episode.coin_positions))
+        self.episodes.append(Episode(episode.hero_position, list(np.repeat(episode.actions, TILE_SIZE/6)), episode.reward, episode.map_path, episode.coin_positions))
     
     def iterate_episodes(self):
         if self.episodes and not self.curr_episode.actions:
             self.curr_episode = self.episodes.pop(0)            
             self.on_episode_changed(self.curr_episode)
-            self.x = self.init_x
-            self.y = self.init_y
+            self.x, self.y = self.calculate_position(self.curr_episode.hero_position)
         
         if self.curr_episode.actions:
             curr_episode_actions = list(self.curr_episode.actions)
             self.move = Move(curr_episode_actions.pop(0))
-            self.curr_episode = Episode(curr_episode_actions, self.curr_episode.reward, self.curr_episode.map_path, self.curr_episode.coin_positions)
+            self.curr_episode = Episode(self.curr_episode.hero_position, curr_episode_actions, self.curr_episode.reward, self.curr_episode.map_path, self.curr_episode.coin_positions)
             return self.move
         elif self.actions:
             self.move = Move(self.actions.pop(0))
@@ -151,12 +153,12 @@ class Hero:
         return (False, 0)
 
 class EpisodeSnapshot():
-    def __init__(self, map_path, coins=[]):
-        self.init_episode = Episode([], 0, map_path, coins)
+    def __init__(self, map_path, coins=[], hero_position=(0,0)):
+        self.init_episode = Episode(hero_position, [], 0, map_path, coins)
         self.episodes = [self.init_episode]
 
-    def snapshot(self, actions, reward, map_path, coin_positions):
-        self.episodes.append(Episode(actions, reward, map_path, coin_positions))
+    def snapshot(self, hero_position, actions, reward, map_path, coin_positions):
+        self.episodes.append(Episode(hero_position, actions, reward, map_path, coin_positions))
     
     def get_episode(self):
         if self.episodes:
