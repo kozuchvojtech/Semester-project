@@ -8,6 +8,8 @@ import random
 import pandas as pd
 import pygame
 
+import plotly.graph_objects as go
+
 from environment import Maze
 from agent import Agent
 from visualizer import Game
@@ -61,7 +63,7 @@ SEED = 1234
 LEARNING_RATE = 0.003
 EPISODES_THRESHOLD = 200
 DESIRED_REWARD = 3.75
-MAP_ITERATIONS = 128
+MAP_ITERATIONS = 256
 
 env = Maze()
 layer_sizes = [env.observations_count, HIDDEN_SIZE, env.actions_count]
@@ -203,11 +205,39 @@ def train(episodeSnapshot):
     print('done training!')
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=iterations, y=loss_func_values, name='loss function'))
-    fig.add_trace(go.Scatter(x=iterations, y=reward_mean_values, name='reward mean'))
-    fig.add_trace(go.Scatter(x=iterations, y=epsilon_values, name='epsilon'))
-    
-    fig.write_image("training_loss.png")
+    fig.update_layout(template='plotly_white')
+
+    fig.add_trace(go.Scatter(
+        x=iterations, 
+        y=reward_mean_values,
+        mode='lines',
+        name='reward mean',
+        line=dict(
+            color='#82B366',
+            width=1.5
+        )))
+
+    fig.add_trace(go.Scatter(
+        x=iterations, 
+        y=loss_func_values,
+        mode='lines',
+        name='loss value',
+        line=dict(
+            color='#B85450',
+            width=1.5
+        )))
+
+    fig.add_trace(go.Scatter(
+        x=iterations, 
+        y=epsilon_values,
+        mode='lines',
+        name='epsilon value', 
+        line=dict(
+            color='#6C8EBF',
+            width=1.5
+        )))
+
+    fig.write_image("training-process.pdf")
     agent.save_trained_model()
 
 class Tester():
