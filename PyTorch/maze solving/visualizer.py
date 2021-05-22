@@ -10,24 +10,6 @@ from move import Move
 TILE_SIZE = 36
 HERO_SIZE = 48
 
-######################## Initialize colours ########################
-# RED
-redColour = pygame.Color(200,0,0)
-brightRedColour = pygame.Color(255,0,0)
-# GREEN
-brightGreenColour = pygame.Color(0,255,0)
-greenColour = pygame.Color(0,200,0)
-brightGreenColour1 = (150, 255, 150)
-darkGreenColour1 = (0, 155, 0)
-# BLACK
-blackColour = pygame.Color(0,0,0)
-# WHITE
-whiteColour = pygame.Color(255,255,255)
-# GRAY
-greyColour = pygame.Color(150,150,150)
-LightGrey = pygame.Color(220,220,220)
-####################################################################
-
 class Episode(ValueObject):
     def __init__(self, hero_position, actions, reward, map_path, coin_positions):
         pass

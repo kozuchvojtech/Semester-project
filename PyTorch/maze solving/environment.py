@@ -12,6 +12,11 @@ class Maze():
         self.episode_steps_threshold = episode_threshold
 
     def get_reward_matrix(self):
+        """A reward matrix is populated for internal purposes only. Zero value means there's a road at a given position. Non-negative value then means that a coin is there. Otherwise it's a field the agent isn't allowed to step on.
+
+        Returns:
+            matrix: R-matrix with values populated
+        """
         R = np.matrix(np.ones(shape=(self.maze.shape[0],self.maze.shape[0])))
         R *= -1
         
@@ -39,6 +44,14 @@ class Maze():
         return self.get_observation(self.current_state)
     
     def step(self, action):
+        """The state of the agent is resolved based on the action required. There are several ways of how the desired state would be considered a final move. Either the agent found all coins succesfully or an invalid move was made.
+
+        Args:
+            action (enum): an enum value representing the action requested
+
+        Returns:
+            tuple: combination of the next observation based on the current state, reward for the action taken and information whether the game ends or not
+        """
         self.current_episode_steps += 1
         action = Move(action)
 
@@ -85,6 +98,14 @@ class Maze():
         return False
     
     def get_observation(self, state):
+        """This method generates observation based on the state received. The observation consists of information about the surrounding area of the agent, location of the nearest coin and previous agent's location.
+
+        Args:
+            state (float): current state of the agent
+
+        Returns:
+            array: current observation
+        """
         current_position = self.get_matrix_position(state)        
         previous_position = self.get_matrix_position(self.previous_state)
 

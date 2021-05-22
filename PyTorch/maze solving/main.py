@@ -73,6 +73,16 @@ Episode = namedtuple('Episode', field_names = ['reward','steps'])
 EpisodeStep = namedtuple('EpisodeStep',field_names = ['observation','action'])
 
 def iterate_batches(maze, hero_position, epsilon):
+    """The main purpose of the method is to iterate through individual episodes during the training process. Those are then returned in batch. 
+
+    Args:
+        maze (matrix): NumPy matrix representing map (environment)
+        hero_position (tuple): current hero's position on the map
+        epsilon (float): a scalar used for epsilon-greedy
+
+    Yields:
+        array of namedtuple: batch of episodes
+    """
     batch = []
     episode_reward = 0.0
     episode_steps = []
@@ -98,6 +108,16 @@ def iterate_batches(maze, hero_position, epsilon):
         obs = next_obs
 
 def filter_batch(batch,percentile):
+    """As part of Cross Entropy algorithm, elite individuals are selected from each population based on which the model is trained. 
+    These are selected based on the k-th percentile of the discounted reward gained. 
+
+    Args:
+        batch (array of namedtuple): batch of episodes (population)
+        percentile (float): k-th percentile
+
+    Returns:
+        array of namedtuple: filtered batch of elite episodes
+    """
     disc_rewards = list(map(lambda s:s.reward*(GAMMA**len(s.steps)),batch))    
     reward_bound = np.percentile(disc_rewards,percentile)
     
@@ -136,6 +156,12 @@ def generate_hero(maze):
     return random.choice(roads)
 
 def train(episodeSnapshot):
+    """This method contains the main loop inside which the agent is trained. It iterates through training maps and generate several coins layouts
+    for each of them. Training of the agent for the current combination ends either when desired reward is gained or maximum episodes treshold is exceeded.
+
+    Args:
+        episodeSnapshot (class): callback function used to visualize selected episodes asynchronously
+    """
     iterations = []
     loss_func_values = []
     reward_mean_values = []
@@ -249,13 +275,20 @@ class Tester():
         self.game = Game(episodeSnapshot, True)
         self.env = Maze(episode_threshold=None)
 
-    def on_coin_grabbed(self, maze_position):        
+    def on_coin_grabbed(self, maze_position):
+        """Works as a callback when a coin is grabbed. A new one is generated based on this event.
+
+        Args:
+            maze_position (tuple): a position of the currently collected coin
+        """
         coin = generate_coins(testing_map.data, count=1, grabbed_coin_position=maze_position)[0]
 
         self.game.append_coin(coin)
         self.env.update_reward_matrix()
 
     def test(self):
+        """Testing process of the agent differs a bit from the training one. There isn't a explicit way of how to end the episode unless the agent steps out of the road, so coins are generated automatically in an infinite loop.
+        """
         agent.load_pretrained_model()
 
         obs = self.env.reset(testing_map.data, self.hero_position, self.on_coin_grabbed)
@@ -293,6 +326,8 @@ def main_loop(episodeSnapshot):
     visualizer.main_loop()
 
 def process_training():
+    """There are two processes running in parallel. One of them serves training loop and the second is used for PyGame visualization. Data between these processes are passed through BaseManager in which an instance of EpisodeSnapshot is registered. This class contains a callback function used for episodes visualization.
+    """
     BaseManager.register('EpisodeSnapshot', EpisodeSnapshot)
     manager = BaseManager()
     manager.start()

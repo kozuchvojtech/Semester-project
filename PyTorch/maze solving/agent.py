@@ -13,6 +13,15 @@ class Agent():
         self.sm = nn.Softmax(dim=1)
 
     def sample_action(self, obs, epsilon):
+        """Method for next actions resolving based on the current observation received. Based on epsilon value the agent either rather randomly selects an action with probability distribution or selects the action which is the most probable one.
+
+        Args:
+            obs (array): current observation
+            epsilon (float): a scalar used for epsilon-greedy
+
+        Returns:
+            integer: the action taken by the agent in the next step
+        """
         actions = self.network(torch.FloatTensor([obs]))
         actions = self.sm(actions)
 
@@ -23,6 +32,14 @@ class Agent():
             return np.random.choice(len(action_probabilities),p=action_probabilities)
     
     def choose_action(self, obs):
+        """Method used in the testing process. Desired action is always the one with highest probability.
+
+        Args:
+            obs (array): current observation
+
+        Returns:
+            integer: the action taken by the agent in the next step
+        """
         actions = self.network(torch.FloatTensor([obs]))
         actions = self.sm(actions)
 
